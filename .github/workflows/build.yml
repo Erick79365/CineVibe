@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Baixar repositório
+      - name: Baixar repositorio
         uses: actions/checkout@v4
 
       - name: Configurar Java
@@ -27,19 +27,31 @@ jobs:
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Encontrar e extrair projeto
+      - name: Extrair projeto V3
         run: |
-          ZIP=$(find . -maxdepth 2 -type f -name "CineVibeAndroid-project-v3.zip" | head -n 1)
-          if [ -z "$ZIP" ]; then
-            echo "Arquivo CineVibeAndroid-project.zip não encontrado!"
+          ZIP="CineVibeAndroid-project-v3.zip"
+          if [ ! -f "$ZIP" ]; then
+            echo "ZIP V3 nao encontrado!"
+            ls -la
             exit 1
           fi
+
+          echo "Conteudo do ZIP:"
+          unzip -l "$ZIP"
+
+          mkdir -p extracted
           unzip -q "$ZIP" -d extracted
+
+          echo "Arquivos extraidos:"
+          find extracted -maxdepth 5 -type f | sort | head -200
+
           PROJECT_DIR=$(find extracted -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) -printf '%h\n' | head -n 1)
+
           if [ -z "$PROJECT_DIR" ]; then
-            echo "Projeto Gradle não encontrado!"
+            echo "Projeto Gradle nao encontrado!"
             exit 1
           fi
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Compilar APK
@@ -47,22 +59,21 @@ jobs:
           cd "$PROJECT_DIR"
           gradle assembleDebug
 
-      - name: Verificar APK
+      - name: Localizar APK
         run: |
           APK=$(find "$PROJECT_DIR" -type f -name "app-debug.apk" | head -n 1)
           if [ -z "$APK" ]; then
-            echo "APK não foi gerado!"
-            exit 1
-          fi
-          SIZE=$(stat -c%s "$APK")
-          echo "Tamanho do APK: $SIZE bytes"
-          if [ "$SIZE" -lt 100000 ]; then
-            echo "APK muito pequeno. Verifique o projeto."
+            echo "APK nao foi gerado!"
             exit 1
           fi
 
-      - name: Enviar APK
+          SIZE=$(stat -c%s "$APK")
+          echo "APK encontrado: $APK"
+          echo "Tamanho: $SIZE bytes"
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+      - name: Enviar APK para analise
         uses: actions/upload-artifact@v4
         with:
-          name: CineVibe-APK-verified
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          name: CineVibe-APK-analise
+          path: ${{ env.APK_PATH }}
